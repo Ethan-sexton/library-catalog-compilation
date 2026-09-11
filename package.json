@@ -1,0 +1,22 @@
+{
+  "name": "library-catalog-compilation",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "dev test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ethan-sexton/library-catalog-compilation.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Ethan-sexton/library-catalog-compilation/issues"
+  },
+  "homepage": "https://github.com/Ethan-sexton/library-catalog-compilation#readme"
+}
