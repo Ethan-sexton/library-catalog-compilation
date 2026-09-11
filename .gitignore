@@ -1,2 +1,6 @@
-process.env
+.env
+.env.*
+!.env.example
+
+.vscode/
 node_modules/
