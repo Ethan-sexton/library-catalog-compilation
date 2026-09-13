@@ -26,7 +26,7 @@ Let's validate the quality of the UI with the cataloggers. It may be best if we 
 I imagine some variation in preference will arise when considering the UI element to select the near-match item currently being checked. We will try to organize these near-match items in the queue in a helpful way. 
 
 
-# Library-Loading Leslie
+# Character Two: Library-Loading Leslie
 This character (all references to real-life people are purely coincidental) is the database administrator who will receive near-match records from the office which distributes them and loads them up into the queue database for the catalogger to process. 
 
     As the library administrator, I would like straightforward 
