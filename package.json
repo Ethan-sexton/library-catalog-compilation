@@ -7,7 +7,13 @@
     "doc": "docs"
   },
   "scripts": {
-    "test": "node src/server.js"
+    "test": "node src/server.js",
+    "migrate": "dbmate up",
+    "migrate:down": "dbmate down",
+    "migrate:new": "dbmate new",
+    "db:dump": "dbmate dump",
+    "db:wait": "dbmate wait",
+    "dev": "node src/server.js"
   },
   "repository": {
     "type": "git",
@@ -23,5 +29,8 @@
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "nodemon": "^3.1.14"
+  },
+  "devDependencies": {
+    "dbmate": "^2.36.0"
   }
 }
