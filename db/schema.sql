@@ -1,106 +1,122 @@
-\restrict dbmate
+--   psql "$DATABASE_URL" -f db/schema.sql   to run this file. 
 
--- Dumped from database version 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1)
--- Dumped by pg_dump version 18.6 (Ubuntu 18.6-1.pgdg24.04+2)
+BEGIN;
 
-SET statement_timeout = 0;
-SET lock_timeout = 0;
-SET idle_in_transaction_session_timeout = 0;
-SET transaction_timeout = 0;
-SET client_encoding = 'UTF8';
-SET standard_conforming_strings = on;
-SELECT pg_catalog.set_config('search_path', '', false);
-SET check_function_bodies = false;
-SET xmloption = content;
-SET client_min_messages = warning;
-SET row_security = off;
+CREATE TABLE compiled_records (
+  name_with_valid_delimiters   TEXT        PRIMARY KEY,
 
---
--- Name: pg_trgm; Type: EXTENSION; Schema: -; Owner: -
---
+  associated_record_identifier TEXT        UNIQUE,
 
-CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public;
+  first_word                   TEXT        NOT NULL
+                                 GENERATED ALWAYS AS (
+                                   split_part(
+                                     trim(regexp_replace(
+                                       regexp_replace(lower(
+                                         substring(name_with_valid_delimiters
+                                                   from '\$a([^$]*)')
+                                       ),
+                                       '([a-z])\.', '\1', 'g'),
+                                       '[^a-z0-9]+', ' ', 'g'
+                                     )),
+                                     ' ', 1
+                                   )
+                                 ) STORED,
+
+  canonical_name               TEXT        NOT NULL,
+
+  id_a                         SMALLINT    NOT NULL CHECK (id_a BETWEEN 0 AND 999),
+  id_b                         SMALLINT    NOT NULL CHECK (id_b BETWEEN 0 AND 999),
+
+  date                         DATE        
+);
+
+CREATE INDEX compiled_records_first_word_idx
+  ON compiled_records (first_word);
 
 
---
--- Name: EXTENSION pg_trgm; Type: COMMENT; Schema: -; Owner: -
---
+CREATE TABLE associated_compiled (
+  id                   UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
 
-COMMENT ON EXTENSION pg_trgm IS 'text similarity measurement and index searching based on trigrams';
+  associated_record_id TEXT        REFERENCES compiled_records(associated_record_identifier),
 
+  associated_number    INT         NOT NULL CHECK (associated_number BETWEEN 1 AND 4),
 
-SET default_tablespace = '';
+  percent_match        NUMERIC(5,2),
 
-SET default_table_access_method = heap;
+  value                TEXT,
 
---
--- Name: compiled_records; Type: TABLE; Schema: public; Owner: -
---
+  id_a                 SMALLINT    NOT NULL CHECK (id_a BETWEEN 0 AND 999),
+  id_b                 SMALLINT    NOT NULL CHECK (id_b BETWEEN 0 AND 999),
 
-CREATE TABLE public.compiled_records (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    canonical_name text NOT NULL,
-    normalized_name text GENERATED ALWAYS AS (TRIM(BOTH FROM regexp_replace(regexp_replace(lower("substring"(canonical_name, '\$a([^$]*)'::text)), '([a-z])\.'::text, '\1'::text, 'g'::text), '[^a-z0-9]+'::text, ' '::text, 'g'::text))) STORED NOT NULL,
-    first_word text GENERATED ALWAYS AS (split_part(TRIM(BOTH FROM regexp_replace(regexp_replace(lower("substring"(canonical_name, '\$a([^$]*)'::text)), '([a-z])\.'::text, '\1'::text, 'g'::text), '[^a-z0-9]+'::text, ' '::text, 'g'::text)), ' '::text, 1)) STORED NOT NULL,
-    identifier_a smallint NOT NULL,
-    identifier_b smallint NOT NULL,
-    date date NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT compiled_records_identifier_a_check CHECK (((identifier_a >= 100) AND (identifier_a <= 999))),
-    CONSTRAINT compiled_records_identifier_b_check CHECK (((identifier_b >= 100) AND (identifier_b <= 999)))
+  author_name_match    TEXT,
+
+  CONSTRAINT associated_compiled_parent_number_uniq
+    UNIQUE (associated_record_id, associated_number)
 );
 
 
---
--- Name: schema_migrations; Type: TABLE; Schema: public; Owner: -
---
+CREATE TABLE new_entries (
+  record_identifier  TEXT        PRIMARY KEY,
 
-CREATE TABLE public.schema_migrations (
-    version character varying NOT NULL
+  id_a               SMALLINT    NOT NULL CHECK (id_a BETWEEN 0 AND 999),
+  id_b               SMALLINT    NOT NULL CHECK (id_b BETWEEN 0 AND 999),
+
+  parent_record_name TEXT
 );
 
 
---
--- Name: compiled_records compiled_records_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
+CREATE TABLE associated_new_entry (
+  id                  UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
 
-ALTER TABLE ONLY public.compiled_records
-    ADD CONSTRAINT compiled_records_pkey PRIMARY KEY (id);
+  associated_new_entry TEXT       REFERENCES new_entries(record_identifier)
+                                    ON DELETE CASCADE,
 
+  associated_number   INT         NOT NULL CHECK (associated_number BETWEEN 1 AND 4),
 
---
--- Name: schema_migrations schema_migrations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
+  percent_match       NUMERIC(5,2),
 
-ALTER TABLE ONLY public.schema_migrations
-    ADD CONSTRAINT schema_migrations_pkey PRIMARY KEY (version);
+  value               TEXT,
 
+  id_a                SMALLINT    NOT NULL CHECK (id_a BETWEEN 0 AND 999),
+  id_b                SMALLINT    NOT NULL CHECK (id_b BETWEEN 0 AND 999),
 
---
--- Name: compiled_records_first_word_idx; Type: INDEX; Schema: public; Owner: -
---
+  author_name         TEXT,
 
-CREATE INDEX compiled_records_first_word_idx ON public.compiled_records USING btree (first_word);
+  CONSTRAINT associated_new_entry_parent_number_uniq
+    UNIQUE (associated_new_entry, associated_number)
+);
+CREATE OR REPLACE FUNCTION set_associated_number()
+RETURNS TRIGGER AS $$
+DECLARE
+  next_num INT;
+BEGIN
+  IF TG_TABLE_NAME = 'associated_compiled' THEN
+    SELECT coalesce(max(associated_number), 0) + 1
+      INTO next_num
+      FROM associated_compiled
+     WHERE associated_record_id = NEW.associated_record_id;
+  ELSE
+    SELECT coalesce(max(associated_number), 0) + 1
+      INTO next_num
+      FROM associated_new_entry
+     WHERE associated_new_entry = NEW.associated_new_entry;
+  END IF;
 
+  IF next_num > 4 THEN
+    RAISE EXCEPTION 'at most 4 associated records allowed per parent (table %)', TG_TABLE_NAME;
+  END IF;
 
---
--- Name: compiled_records_normalized_trgm_idx; Type: INDEX; Schema: public; Owner: -
---
+  NEW.associated_number := next_num;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
 
-CREATE INDEX compiled_records_normalized_trgm_idx ON public.compiled_records USING gin (normalized_name public.gin_trgm_ops);
+CREATE TRIGGER associated_compiled_set_number
+  BEFORE INSERT ON associated_compiled
+  FOR EACH ROW EXECUTE FUNCTION set_associated_number();
 
+CREATE TRIGGER associated_new_entry_set_number
+  BEFORE INSERT ON associated_new_entry
+  FOR EACH ROW EXECUTE FUNCTION set_associated_number();
 
---
--- PostgreSQL database dump complete
---
-
-\unrestrict dbmate
-
-
---
--- Dbmate schema migrations
---
-
-INSERT INTO public.schema_migrations (version) VALUES
-    ('092426');
+  COMMIT;
