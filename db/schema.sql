@@ -22,16 +22,36 @@ CREATE TABLE compiled_records (
                                    )
                                  ) STORED,
 
+  first_letter                 VARCHAR(1)  NOT NULL
+                                 GENERATED ALWAYS AS (
+                                   substring(
+                                     trim(regexp_replace(
+                                       regexp_replace(lower(
+                                         substring(name_with_valid_delimiters
+                                                   from '\$a([^$]*)')
+                                       ),
+                                       '([a-z])\.', '\1', 'g'),
+                                       '[^a-z0-9]+', ' ', 'g'
+                                     ))
+                                     from 1 for 1
+                                   )
+                                 ) STORED,
+  
   canonical_name               TEXT        NOT NULL,
 
-  id_a                         SMALLINT    NOT NULL CHECK (id_a BETWEEN 0 AND 999),
-  id_b                         SMALLINT    NOT NULL CHECK (id_b BETWEEN 0 AND 999),
+  tag                          VARCHAR(10) NOT NULL,
+
+  comments                     TEXT,
+
 
   date                         DATE        
 );
 
 CREATE INDEX compiled_records_first_word_idx
   ON compiled_records (first_word);
+
+CREATE INDEX compiled_records_sort_idx
+  ON compiled_records (first_letter, first_word, name_with_valid_delimiters);
 
 
 CREATE TABLE associated_compiled (
@@ -43,10 +63,10 @@ CREATE TABLE associated_compiled (
 
   percent_match        NUMERIC(5,2),
 
-  value                TEXT,
+  lcn                  TEXT,
 
-  id_a                 SMALLINT    NOT NULL CHECK (id_a BETWEEN 0 AND 999),
-  id_b                 SMALLINT    NOT NULL CHECK (id_b BETWEEN 0 AND 999),
+  tag                  VARCHAR(10) NOT NULL,
+
 
   author_name_match    TEXT,
 
@@ -58,8 +78,8 @@ CREATE TABLE associated_compiled (
 CREATE TABLE new_entries (
   record_identifier  TEXT        PRIMARY KEY,
 
-  id_a               SMALLINT    NOT NULL CHECK (id_a BETWEEN 0 AND 999),
-  id_b               SMALLINT    NOT NULL CHECK (id_b BETWEEN 0 AND 999),
+  tag                            VARCHAR(10)  NOT NULL,
+
 
   parent_record_name TEXT
 );
@@ -75,10 +95,10 @@ CREATE TABLE associated_new_entry (
 
   percent_match       NUMERIC(5,2),
 
-  value               TEXT,
+  lcn                TEXT,
 
-  id_a                SMALLINT    NOT NULL CHECK (id_a BETWEEN 0 AND 999),
-  id_b                SMALLINT    NOT NULL CHECK (id_b BETWEEN 0 AND 999),
+  tag                 VARCHAR(10) NOT NULL,
+
 
   author_name         TEXT,
 
