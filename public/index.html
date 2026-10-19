@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Library Database Catalog</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <h1>Catalog</h1>
+
+      <label for="db-select">Database</label>
+      <select id="db-select">
+        <option value="authors">Authors</option>
+      </select>
+
+      <button id="upload-btn">Upload XML</button>
+      <input type="file" id="upload-file" accept=".xml" hidden>
+
+      <button id="check-btn">Check &amp; Convert</button>
+
+      <div id="status"></div>
+    </aside>
+
+    <main class="content">
+      <div class="toolbar">
+        <button id="prev-btn">← Prev</button>
+        <span id="page-info"></span>
+        <button id="next-btn">Next →</button>
+      </div>
+
+      <table id="records">
+        <thead>
+          <tr>
+            <th>Tag</th>
+            <th>Canonical Name</th>
+            <th>Comments</th>
+            <th>Date</th>
+            <th>Assoc ID</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

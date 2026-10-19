@@ -1,19 +1,14 @@
 {
   "name": "library-catalog-compilation",
   "version": "1.0.0",
-  "description": "",
-  "main": "server.js",
+  "description": "Internal catalog tool for compiling library author records.",
+  "main": "src/server.js",
   "directories": {
     "doc": "docs"
   },
   "scripts": {
-    "test": "node src/server.js",
-    "migrate": "dbmate up",
-    "migrate:down": "dbmate down",
-    "migrate:new": "dbmate new",
-    "db:dump": "dbmate dump",
-    "db:wait": "dbmate wait",
-    "dev": "node src/server.js"
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js"
   },
   "repository": {
     "type": "git",
@@ -28,9 +23,10 @@
   "dependencies": {
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
-    "nodemon": "^3.1.14"
+    "multer": "^1.4.5-lts.1",
+    "pg": "^8.23.1"
   },
   "devDependencies": {
-    "dbmate": "^2.36.0"
+    "nodemon": "^3.1.14"
   }
 }
