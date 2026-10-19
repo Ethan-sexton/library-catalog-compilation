@@ -1,8 +1,13 @@
-.env
-.env.*
-!.env.example
+*.env
+*.env.*
+!*.env.example
+
+#Used for misc. testing scripts
+.wip-tests/
 
 .vscode/
 node_modules/
 
 .idea/
+
+resources/
