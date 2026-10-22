@@ -10,7 +10,9 @@ const els = {
   uploadBtn: document.querySelector('#upload-btn'),
   uploadFile:document.querySelector('#upload-file'),
   checkBtn:  document.querySelector('#check-btn'),
+  newEntrySelect: document.querySelector('#new-entry-select'),
 };
+
 
 function setStatus(msg, kind) {
   els.status.textContent = msg || '';
@@ -22,6 +24,7 @@ async function loadPage(page) {
   try {
     const res = await fetch(`/api/compiled?page=${page}&limit=${PAGE_SIZE}`);
     if (!res.ok) throw new Error(await res.text());
+
     const data = await res.json();
     state.page = data.page;
     state.total = data.total;
@@ -38,17 +41,41 @@ function renderRows(rows) {
   for (const row of rows) {
     const tr = document.createElement('tr');
     tr.dataset.pk = row.name_with_valid_delimiters;
+    tr.dataset.type = 'parent'; // Explicitly mark as parent
 
-    tr.appendChild(cell(row.first_word, { readOnly: true }));
-    tr.appendChild(cell(row.canonical_name, { field: 'canonical_name' }));
     tr.appendChild(cell(row.tag, { field: 'tag' }));
+    tr.appendChild(cell(row.canonical_name, { field: 'canonical_name' }));
     tr.appendChild(cell(row.comments || '', { field: 'comments' }));
+    tr.appendChild(document.createElement('td'));
     tr.appendChild(cell(row.date || '', { readOnly: true }));
     tr.appendChild(cell(row.associated_record_identifier || '', { readOnly: true, pk: true }));
+    tr.appendChild(document.createElement('td'));
+
 
     els.tbody.appendChild(tr);
+
+    // Render associated records immediately below
+    if (row.associated_records && row.associated_records.length > 0) {
+      for (const child of row.associated_records) {
+        const childTr = document.createElement('tr');
+        childTr.className = 'child-row';
+        childTr.dataset.pk = child.id;       // Use the UUID for the PK
+        childTr.dataset.type = 'associated_compiled'; // Mark as child
+
+        childTr.appendChild(cell(child.tag, { field: 'tag' }));
+        childTr.appendChild(cell(child.author_name_match || '', { field: 'author_name_match' }));
+        childTr.appendChild(document.createElement('td'));
+        childTr.appendChild(cell(child.percent_match || '', { field: 'percent_match' }));
+        childTr.appendChild(document.createElement('td'));
+        childTr.appendChild(document.createElement('td')); // Empty Date cell
+        childTr.appendChild(cell(child.lcn || '', { field: 'lcn' }));
+
+        els.tbody.appendChild(childTr);
+      }
+    }
   }
 }
+
 
 function cell(value, opts = {}) {
   const td = document.createElement('td');
@@ -67,13 +94,17 @@ function cell(value, opts = {}) {
 }
 
 async function saveField(td, field) {
-  const pk = td.closest('tr').dataset.pk;
+  const tr = td.closest('tr');
+  const pk = tr.dataset.pk;
+  const type = tr.dataset.type || 'parent';
   const original = td.dataset.original;
   const value = td.textContent;
   if (value === original) return;
 
+  const endpoint = type === 'associated_compiled' ? '/api/associated_compiled' : '/api/compiled';
+
   try {
-    const res = await fetch('/api/compiled', {
+    const res = await fetch(endpoint, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ pk, changes: { [field]: value } }),
@@ -116,18 +147,62 @@ els.uploadFile.addEventListener('change', async () => {
   }
 });
 
-els.checkBtn.addEventListener('click', async () => {
-  if (!confirm('Run check and convert?')) return;
-  setStatus('Running…');
+
+async function loadNewEntries() {
   try {
-    const res = await fetch('/api/check', { method: 'POST' });
+    const res = await fetch('/api/new-entries');
+    if (!res.ok) throw new Error(await res.text());
+    const entries = await res.json();
+    
+    els.newEntrySelect.replaceChildren();
+    if (entries.length === 0) {
+      const opt = document.createElement('option');
+      opt.textContent = 'No new entries found';
+      opt.value = '';
+      els.newEntrySelect.appendChild(opt);
+      return;
+    }
+
+    for (const entry of entries) {
+      const opt = document.createElement('option');
+      opt.value = entry.record_identifier;
+      // Show both ID and Name for clarity
+      opt.textContent = `${entry.record_identifier} (${entry.parent_record_name || 'No Name'})`;
+      els.newEntrySelect.appendChild(opt);
+    }
+  } catch (err) {
+    setStatus(`Failed to load new entries: ${err.message}`, 'error');
+  }
+}
+
+els.checkBtn.addEventListener('click', async () => {
+  const recordIdentifier = els.newEntrySelect.value;
+  if (!recordIdentifier) return;
+
+  const confirmMsg = `Run check on ${recordIdentifier}?`;
+  if (!confirm(confirmMsg)) return;
+
+  setStatus('Running...');
+  try {
+    const res = await fetch('/api/check', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ record_identifier: recordIdentifier }),
+    });
+    
     if (!res.ok) throw new Error(await res.text());
     const result = await res.json();
-    setStatus(`Converted ${result.converted}, deleted ${result.deleted}`, 'success');
-    loadPage(0);
+    
+    setStatus(result.status === 'converted' ? 'Converted successfully' : 'Matched & Deleted', 'success');
+    
+    // Refresh the dropdown and the main table
+    loadNewEntries();
+    loadPage(0); 
   } catch (err) {
     setStatus(`Check failed: ${err.message}`, 'error');
   }
 });
 
+
+loadNewEntries();
 loadPage(0);

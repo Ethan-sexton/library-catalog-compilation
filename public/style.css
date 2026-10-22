@@ -113,3 +113,24 @@ td.pk {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.child-row td {
+  background-color: #f9f9f9;
+  color: #444;
+  font-size: 13px;
+  border-bottom: 1px dotted #ddd;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+/* Add the arrow only to the first cell of a child row */
+.child-row td:first-child::before {
+  content: "↳ ";
+  color: #999;
+}
+
+/* Keep the yellow focus outline visible on children */
+.child-row td[contenteditable]:focus {
+  background: #fffbe6;
+  box-shadow: inset 0 0 0 1px #f0c040;
+}
