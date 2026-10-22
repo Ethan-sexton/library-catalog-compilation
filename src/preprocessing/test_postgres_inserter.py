@@ -4,7 +4,6 @@ from unittest.mock import Mock
 from classes.DataClasses import AuthorityMatch, CompiledRecord
 from classes.PostgresInserter import PostgresInserter
 
-
 class PostgresInserterTests(unittest.TestCase):
     def setUp(self):
         self.connection = Mock()
