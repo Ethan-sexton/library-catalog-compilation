@@ -1,12 +1,23 @@
 require('dotenv').config();
 
 const express = require('express');
+const session = require('express-session')
 const path = require('path');
 const pool = require('./db');
+
 
 const app = express();
 app.use(express.json({ limit: '5mb' }));
 app.use(express.static(path.join(__dirname, '..', 'public')));
+
+app.use(session({
+  secret: "test value change before deploying",
+  resave: true,
+  saveUninitialized: true,
+  cookie: {secure: false},
+  saveUninitialized: true,
+  cookie: {maxAge: 1800000}
+}));
 
 const EDITABLE = ['canonical_name', 'tag', 'comments'];
 
