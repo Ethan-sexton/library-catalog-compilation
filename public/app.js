@@ -1,5 +1,5 @@
 const PAGE_SIZE = 10;
-const state = { page: 0, total: 0 };
+const state = { page: 0, total: 0, searchQuery: '' };
 
 const els = {
   tbody:     document.querySelector('#records tbody'),
@@ -11,6 +11,9 @@ const els = {
   uploadFile:document.querySelector('#upload-file'),
   checkBtn:  document.querySelector('#check-btn'),
   newEntrySelect: document.querySelector('#new-entry-select'),
+  searchForm: document.querySelector('#search-form'),
+  searchInput: document.querySelector('#search-input'),
+  checkAllBtn: document.querySelector('#check-all-btn'),
 };
 
 
@@ -22,7 +25,11 @@ function setStatus(msg, kind) {
 async function loadPage(page) {
   setStatus('Loading…');
   try {
-    const res = await fetch(`/api/compiled?page=${page}&limit=${PAGE_SIZE}`);
+    let url = `/api/compiled?page=${page}&limit=${PAGE_SIZE}`;
+    if (state.searchQuery) {
+      url += `&q=${encodeURIComponent(state.searchQuery)}`;
+    }
+    const res = await fetch(url);
     if (!res.ok) throw new Error(await res.text());
 
     const data = await res.json();
@@ -41,34 +48,53 @@ function renderRows(rows) {
   for (const row of rows) {
     const tr = document.createElement('tr');
     tr.dataset.pk = row.name_with_valid_delimiters;
-    tr.dataset.type = 'parent'; // Explicitly mark as parent
+    tr.dataset.type = 'parent'; 
 
-    tr.appendChild(cell(row.tag, { field: 'tag' }));
-    tr.appendChild(cell(row.canonical_name, { field: 'canonical_name' }));
-    tr.appendChild(cell(row.comments || '', { field: 'comments' }));
+    tr.appendChild(cell(row.tag, { readOnly: true }));
+    tr.appendChild(cell(row.canonical_name, { readOnly: true }));
     tr.appendChild(document.createElement('td'));
-    tr.appendChild(cell(row.date || '', { readOnly: true }));
+    tr.appendChild(document.createElement('td'));
+
+    const parentComments = cell(row.comments || '', { field: 'comments' });
+    parentComments.classList.add('comment-cell');
+    tr.appendChild(parentComments);
+    
+    tr.appendChild(cell(row.date || '', { field: 'date' }));
     tr.appendChild(cell(row.associated_record_identifier || '', { readOnly: true, pk: true }));
-    tr.appendChild(document.createElement('td'));
+
+    const actionsTd = document.createElement('td');
+    const deleteBtn = document.createElement('button');
+    deleteBtn.textContent = 'Delete';
+    deleteBtn.className = 'delete-btn';
+    deleteBtn.addEventListener('click', async () => {
+      if (!confirm(`Are you sure you want to delete ${row.name_with_valid_delimiters}?`)) return;
+      deleteRecord(row.name_with_valid_delimiters);
+    });
+    actionsTd.appendChild(deleteBtn);
+    tr.appendChild(actionsTd);
 
 
     els.tbody.appendChild(tr);
 
-    // Render associated records immediately below
+    // Associated Records
     if (row.associated_records && row.associated_records.length > 0) {
       for (const child of row.associated_records) {
         const childTr = document.createElement('tr');
         childTr.className = 'child-row';
-        childTr.dataset.pk = child.id;       // Use the UUID for the PK
-        childTr.dataset.type = 'associated_compiled'; // Mark as child
+        childTr.dataset.pk = child.id;       
+        childTr.dataset.type = 'associated_compiled'; 
 
-        childTr.appendChild(cell(child.tag, { field: 'tag' }));
-        childTr.appendChild(cell(child.author_name_match || '', { field: 'author_name_match' }));
-        childTr.appendChild(document.createElement('td'));
-        childTr.appendChild(cell(child.percent_match || '', { field: 'percent_match' }));
-        childTr.appendChild(document.createElement('td'));
-        childTr.appendChild(document.createElement('td')); // Empty Date cell
-        childTr.appendChild(cell(child.lcn || '', { field: 'lcn' }));
+        childTr.appendChild(cell(child.tag, { readOnly:true }));
+        childTr.appendChild(cell(child.author_name_match || '', { readOnly:true }));
+        childTr.appendChild(cell(child.percent_match || '', { readOnly:true }));
+        childTr.appendChild(cell(child.lcn || '', { readOnly:true }));
+        const childComments = cell(child.comments || '', { field: 'comments' });
+        childComments.classList.add('comment-cell');
+        childTr.appendChild(childComments);
+        childTr.appendChild(cell(child.date || '', { field:'date' }));
+        childTr.appendChild(cell(child.associated_record_identifier || '', { readOnly: true, pk: true }));
+        childTr.appendChild(document.createElement('td')); 
+        
 
         els.tbody.appendChild(childTr);
       }
@@ -116,6 +142,23 @@ async function saveField(td, field) {
   } catch (err) {
     td.textContent = original;
     setStatus(`Save failed: ${err.message}`, 'error');
+  }
+}
+
+async function deleteRecord(pk) {
+  setStatus('Deleting...');
+  try {
+    const res = await fetch(`/api/compiled/${encodeURIComponent(pk)}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) throw new Error(await res.text());
+    
+    setStatus('Deleted successfully', 'success');
+    setTimeout(() => setStatus(''), 1200);
+    
+    loadPage(state.page);
+  } catch (err) {
+    setStatus(`Delete failed: ${err.message}`, 'error');
   }
 }
 
@@ -200,6 +243,33 @@ els.checkBtn.addEventListener('click', async () => {
     loadPage(0); 
   } catch (err) {
     setStatus(`Check failed: ${err.message}`, 'error');
+  }
+});
+
+els.searchForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  state.searchQuery = els.searchInput.value.trim();
+  loadPage(0);
+});
+
+els.checkAllBtn.addEventListener('click', async () => {
+  if(!confirm('Run check on all new entries?')) return;
+
+  setStatus('Running all conversions... Please wait.');
+
+  try {
+    const res = await fetch('api/check-all', {method: 'POST'});
+    if (!res.ok) throw new Error(await res.text());
+    const result = await res.json();
+
+    setStatus(`Success: ${result.converted} converted, ${result.deleted} matched & deleted.`, 'success');
+
+    loadNewEntries();
+    loadPage(0);
+  } catch (err) {
+    setStatus('Batch check failed: ${err.message}', 'error');
+  } finally {
+    els.checkAllBtn.disabled = false;
   }
 });
 
