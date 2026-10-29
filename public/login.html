@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in | Library Catalog</title>
+  <link rel="stylesheet" href="auth.css">
+</head>
+<body>
+  <main class="auth-card">
+    <p class="eyebrow">Library Catalog</p>
+    <h1 id="form-title">Welcome back</h1>
+    <p class="intro" id="form-intro">Sign in to continue to the catalog.</p>
+
+    <div class="mode-switch" role="group" aria-label="Account options">
+      <button type="button" class="mode-button active" id="login-mode" aria-pressed="true">Log in</button>
+      <button type="button" class="mode-button" id="signup-mode" aria-pressed="false">Sign up</button>
+    </div>
+
+    <form id="login-form">
+      <label for="login-identifier">Username or email</label>
+      <input id="login-identifier" name="identifier" autocomplete="username" required>
+
+      <label for="login-password">Password</label>
+      <input id="login-password" name="password" type="password" autocomplete="current-password" required>
+
+      <button class="submit-button" type="submit">Log in</button>
+    </form>
+
+    <form id="signup-form" hidden>
+      <label for="signup-username">Username</label>
+      <input id="signup-username" name="username" autocomplete="username" minlength="3" maxlength="30" pattern="[A-Za-z0-9_]+" required>
+
+      <label for="signup-email">Email</label>
+      <input id="signup-email" name="email" type="email" autocomplete="email" maxlength="254" required>
+
+      <label for="signup-password">Password</label>
+      <input id="signup-password" name="password" type="password" autocomplete="new-password" minlength="10" required>
+      <p class="hint">Use at least 10 characters.</p>
+
+      <button class="submit-button" type="submit">Create account</button>
+    </form>
+
+    <p id="auth-message" class="message" role="status" aria-live="polite"></p>
+  </main>
+  <script src="auth.js"></script>
+</body>
+</html>

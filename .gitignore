@@ -11,3 +11,7 @@ node_modules/
 .idea/
 
 resources/
+
+newdb.sql
+
+config.jsonc

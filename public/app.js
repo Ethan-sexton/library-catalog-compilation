@@ -10,6 +10,7 @@ const els = {
   uploadBtn: document.querySelector('#upload-btn'),
   uploadFile:document.querySelector('#upload-file'),
   checkBtn:  document.querySelector('#check-btn'),
+  logoutBtn: document.querySelector('#logout-btn'),
 };
 
 function setStatus(msg, kind) {
@@ -127,6 +128,16 @@ els.checkBtn.addEventListener('click', async () => {
     loadPage(0);
   } catch (err) {
     setStatus(`Check failed: ${err.message}`, 'error');
+  }
+});
+
+els.logoutBtn.addEventListener('click', async () => {
+  try {
+    const res = await fetch('/api/auth/logout', { method: 'POST' });
+    if (!res.ok) throw new Error(await res.text());
+    window.location.assign('/login.html');
+  } catch (err) {
+    setStatus(`Log out failed: ${err.message}`, 'error');
   }
 });
 

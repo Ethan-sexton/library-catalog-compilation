@@ -1,25 +1,57 @@
 require('dotenv').config();
 
 const express = require('express');
-const session = require('express-session')
+const session = require('express-session');
+const PgSession = require('connect-pg-simple')(session);
 const path = require('path');
 const pool = require('./db');
+const authRoutes = require('./routes/auth');
 
+const sessionSecret = process.env.SESSION_SECRET;
+if (!sessionSecret) {
+  throw new Error('SESSION_SECRET must be set before starting the server');
+}
 
 const app = express();
 app.use(express.json({ limit: '5mb' }));
-app.use(express.static(path.join(__dirname, '..', 'public')));
-
 app.use(session({
-  secret: "test value change before deploying",
-  resave: true,
-  saveUninitialized: true,
-  cookie: {secure: false},
-  saveUninitialized: true,
-  cookie: {maxAge: 1800000}
+  store: new PgSession({
+    pool,
+    tableName: 'user_sessions',
+    createTableIfMissing: true,
+  }),
+  secret: sessionSecret,
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 30 * 60 * 1000,
+  },
 }));
 
 const EDITABLE = ['canonical_name', 'tag', 'comments'];
+
+function requireAuth(req, res, next) {
+  if (!req.session.userId) {
+    if (req.originalUrl.startsWith('/api/')) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    return res.redirect('/login.html');
+  }
+  next();
+}
+
+app.use('/api/auth', authRoutes);
+app.use('/api', requireAuth);
+
+app.get('/', (req, res) => {
+  res.redirect(req.session.userId ? '/index.html' : '/login.html');
+});
+app.get('/index.html', requireAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
+});
 
 // Paginated list, sorted by (first_letter, first_word, PK)
 app.get('/api/compiled', async (req, res) => {
@@ -79,6 +111,8 @@ app.patch('/api/compiled', async (req, res) => {
 // Stubs — fill in when the XML format and check logic are settled
 app.post('/api/upload', (req, res) => res.status(501).json({ error: 'not implemented' }));
 app.post('/api/check',  (req, res) => res.status(501).json({ error: 'not implemented' }));
+
+app.use(express.static(path.join(__dirname, '..', 'public')));
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Listening on http://localhost:${PORT}`));

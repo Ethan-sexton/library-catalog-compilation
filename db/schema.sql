@@ -2,7 +2,7 @@
 
 BEGIN;
 
-CREATE TABLE compiled_records (
+CREATE TABLE IF NOT EXISTS compiled_records (
   name_with_valid_delimiters   TEXT        PRIMARY KEY,
 
   associated_record_identifier TEXT        UNIQUE,
