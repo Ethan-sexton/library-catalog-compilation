@@ -1,5 +1,12 @@
+/** 
+We begin the programme by defining some state variables and define a structure of the DOM elements. 
+
+Since we will be calculating the page position using a fixed page_size, which is the number of elements which
+we permit on each page, we choose to define the variabels below. 
+*/
+
 const PAGE_SIZE = 10;
-const state = { page: 0, total: 0, searchQuery: '' };
+const state = { page: 0, total: 0, searchQuery: '', highlightPK: null };
 
 const els = {
   tbody:     document.querySelector('#records tbody'),
@@ -17,17 +24,33 @@ const els = {
 };
 
 
+/**
+setStatus allows us to interact with a DOM element at the bottom right of the page. Errors intended for developers can appear here. 
+
+Issues which appear in the app.js can be routed to this DOM element. 
+
+@param {string} msg: The message to be displayed in the status element.
+@param {string} kind: The type of message, which can be 'error', 'success', or '' (empty string for neutral messages).
+@returns {void} 
+*/
 function setStatus(msg, kind) {
   els.status.textContent = msg || '';
   els.status.className = kind || '';
 }
 
-async function loadPage(page) {
+/*
+loadPage loads the records from the compiled_records table into the the DOM element. We concatenate the url by
+using the page number which is calculated by the toolbar element event listener or by the server using the searchbar. 
+
+@PARAMS page: zero-indexed page number of the dataset to be fetched. Pages are 10 records long, as defined at the beginning of this file. 
+@PARAMS jumpQuery: the search query which is to be used to filter records.
+*/
+async function loadPage(page, jumpQuery = null) {
   setStatus('Loading…');
   try {
     let url = `/api/compiled?page=${page}&limit=${PAGE_SIZE}`;
-    if (state.searchQuery) {
-      url += `&q=${encodeURIComponent(state.searchQuery)}`;
+    if (jumpQuery) {
+      url += `&q=${encodeURIComponent(jumpQuery)}`;
     }
     const res = await fetch(url);
     if (!res.ok) throw new Error(await res.text());
@@ -35,6 +58,7 @@ async function loadPage(page) {
     const data = await res.json();
     state.page = data.page;
     state.total = data.total;
+    state.highlightPK = data.highlightPK || null;
     renderRows(data.rows);
     renderPager();
     setStatus('');
@@ -43,14 +67,26 @@ async function loadPage(page) {
   }
 }
 
+/** 
+renderRows parses the data returned from api calls and constructs a table from DOM in O(n). 
+row in rows can have an associated record, which will be parsed as one or two child rows, if it exists. 
+
+@param {Object} rows: row SQL data from API call return as JSON. 
+@returns {void}
+*/
 function renderRows(rows) {
   els.tbody.replaceChildren();
   for (const row of rows) {
-    const tr = document.createElement('tr');
+    const tr = document.createElement('tr'); //"table row"
+
     tr.dataset.pk = row.name_with_valid_delimiters;
     tr.dataset.type = 'parent'; 
 
-    tr.appendChild(cell(row.tag, { readOnly: true }));
+    if(row.name_with_valid_delimiters === state.highlightPK) {
+      tr.classList.add('highlight');
+    }
+
+    tr.appendChild(cell(row.tag, { readOnly: true })); //Since we access the members of row by dot operator, we can create the elements in the order we want to display them. 
     tr.appendChild(cell(row.canonical_name, { readOnly: true }));
     tr.appendChild(document.createElement('td'));
     tr.appendChild(document.createElement('td'));
@@ -88,10 +124,10 @@ function renderRows(rows) {
         childTr.appendChild(cell(child.author_name_match || '', { readOnly:true }));
         childTr.appendChild(cell(child.percent_match || '', { readOnly:true }));
         childTr.appendChild(cell(child.lcn || '', { readOnly:true }));
-        const childComments = cell(child.comments || '', { field: 'comments' });
+        const childComments = cell(child.comments || '', { readOnly:true });
         childComments.classList.add('comment-cell');
         childTr.appendChild(childComments);
-        childTr.appendChild(cell(child.date || '', { field:'date' }));
+        childTr.appendChild(cell(child.date || '', { readOnly:true }));
         childTr.appendChild(cell(child.associated_record_identifier || '', { readOnly: true, pk: true }));
         childTr.appendChild(document.createElement('td')); 
         
@@ -102,11 +138,18 @@ function renderRows(rows) {
   }
 }
 
+/** 
+  cell() creates the cell object for the table by reading the options of the cell to decide which ones are read-only, and adds event listeners for the cell data.
+  We always save after interacting with field. 
 
+  @param {*} value: displayed value. 
+  @param {Object} opts: options for the cell, which can include readOnly, pk, and field. 
+  @returns {HTMLElement} td: the table cell created.
+*/
 function cell(value, opts = {}) {
   const td = document.createElement('td');
   td.textContent = value;
-  if (opts.pk) td.classList.add('pk');
+  if (opts.pk) td.classList.add('pk'); //Display differently if primary key, these display instructions are in css file. 
   if (!opts.readOnly) {
     td.contentEditable = 'true';
     td.dataset.original = value;
@@ -119,6 +162,12 @@ function cell(value, opts = {}) {
   return td;
 }
 
+/**
+ * Saves a field to database given the table cell and the new field name. 
+ * @param {HTMLElement} td 
+ * @param {*} field 
+ * @returns {void}
+ */
 async function saveField(td, field) {
   const tr = td.closest('tr');
   const pk = tr.dataset.pk;
@@ -145,6 +194,11 @@ async function saveField(td, field) {
   }
 }
 
+/**
+ * Deletes the record given the primary key. 
+ * @param {string} pk I'm pretty sure it's a string.  
+ * @returns {void}
+ */
 async function deleteRecord(pk) {
   setStatus('Deleting...');
   try {
@@ -161,7 +215,10 @@ async function deleteRecord(pk) {
     setStatus(`Delete failed: ${err.message}`, 'error');
   }
 }
-
+/**
+ * Displays record numbers at toolbar.
+ * @returns {void}
+ */
 function renderPager() {
   const start = state.total ? state.page * PAGE_SIZE + 1 : 0;
   const end   = Math.min((state.page + 1) * PAGE_SIZE, state.total);
@@ -170,27 +227,12 @@ function renderPager() {
   els.nextBtn.disabled = (state.page + 1) * PAGE_SIZE >= state.total;
 }
 
-els.prevBtn.addEventListener('click', () => loadPage(state.page - 1));
-els.nextBtn.addEventListener('click', () => loadPage(state.page + 1));
 
-els.uploadBtn.addEventListener('click', () => els.uploadFile.click());
-els.uploadFile.addEventListener('change', async () => {
-  const file = els.uploadFile.files[0];
-  if (!file) return;
-  const form = new FormData();
-  form.append('file', file);
-  setStatus('Uploading…');
-  try {
-    const res = await fetch('/api/upload', { method: 'POST', body: form });
-    if (!res.ok) throw new Error(await res.text());
-    setStatus('Uploaded', 'success');
-    els.uploadFile.value = '';
-  } catch (err) {
-    setStatus(`Upload failed: ${err.message}`, 'error');
-  }
-});
-
-
+/**
+ * Calls API for the new records to be converted and puts them in the drop-down selector. 
+ * 
+ * @returns {void}
+ */
 async function loadNewEntries() {
   try {
     const res = await fetch('/api/new-entries');
@@ -218,6 +260,33 @@ async function loadNewEntries() {
   }
 }
 
+//These are a load of event listeners. 
+
+//Move the page forwards or backwards. 
+els.prevBtn.addEventListener('click', () => loadPage(state.page - 1));
+els.nextBtn.addEventListener('click', () => loadPage(state.page + 1));
+
+//Ethan is doing this part. 
+els.uploadBtn.addEventListener('click', () => els.uploadFile.click());
+els.uploadFile.addEventListener('change', async () => {
+  const file = els.uploadFile.files[0];
+  if (!file) return;
+  const form = new FormData();
+  form.append('file', file);
+  setStatus('Uploading…');
+  try {
+    const res = await fetch('/api/upload', { method: 'POST', body: form });
+    if (!res.ok) throw new Error(await res.text());
+    setStatus('Uploaded', 'success');
+    els.uploadFile.value = '';
+  } catch (err) {
+    setStatus(`Upload failed: ${err.message}`, 'error');
+  }
+});
+
+
+
+//This event listener calls the match and convert logic, which is done by the database server. It also reloads the tables so changes made to current page are visible. 
 els.checkBtn.addEventListener('click', async () => {
   const recordIdentifier = els.newEntrySelect.value;
   if (!recordIdentifier) return;
@@ -238,7 +307,6 @@ els.checkBtn.addEventListener('click', async () => {
     
     setStatus(result.status === 'converted' ? 'Converted successfully' : 'Matched & Deleted', 'success');
     
-    // Refresh the dropdown and the main table
     loadNewEntries();
     loadPage(0); 
   } catch (err) {
@@ -246,11 +314,16 @@ els.checkBtn.addEventListener('click', async () => {
   }
 });
 
-els.searchForm.addEventListener('submit', (e) => {
-  e.preventDefault();
-  state.searchQuery = els.searchInput.value.trim();
-  loadPage(0);
-});
+
+/**
+ * 
+ *Runs check and convert logic on ALL new entries. 
+ *
+ *The reason that we do this with a new event listener instead of iterating through the new entries with the old logic is so that
+ *the whole batch is done as a single transaction, so by ACID compliance, the whole transaction will be rolled back if it fails. 
+ *
+ *This should hopefully help prevent malformed databases upon server misbehaviors. 
+ */
 
 els.checkAllBtn.addEventListener('click', async () => {
   if(!confirm('Run check on all new entries?')) return;
@@ -272,6 +345,15 @@ els.checkAllBtn.addEventListener('click', async () => {
     els.checkAllBtn.disabled = false;
   }
 });
+
+//Calls loadpage with a trimmed query parameter. 
+els.searchForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const q = els.searchInput.value.trim();
+  loadPage(0, q || null);
+});
+
+
 
 
 loadNewEntries();

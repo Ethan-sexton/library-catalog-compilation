@@ -161,13 +161,13 @@ td.pk {
   padding-left: 24px;
 }
 
-/* Keep the arrow looking neat */
+/* Keep arrow  */
 .child-row td:first-child::before {
   content: "↳ ";
   color: #999;
 }
 
-/* Keep the yellow focus outline visible on children */
+/* Keep yellow focus outline visible on children */
 .child-row td[contenteditable]:focus {
   background: #fffbe6;
   box-shadow: inset 0 0 0 1px #f0c040;
@@ -209,3 +209,18 @@ td.pk {
 #records th:nth-child(6) { width: 9%; } /* Date */
 #records th:nth-child(7) { width: 11%;  } /* Assoc ID */
 #records th:nth-child(8) { width: 5%;  } /* Assoc ID */
+
+/* Highlighting business for query-returned records.*/
+.highlight td {
+  background-color: #64c4ff;
+  box-shadow: inset 0 0 0 2px #4587b0;
+  transition: background-color 1.5s ease-out;
+}
+
+@keyframes highlight-fade {
+  from { background-color: #64c4ff; }
+  to   { background-color: transparent; }
+}
+.highlight td {
+  animation: highlight-fade 3s ease-out 1.5s forwards;
+}
