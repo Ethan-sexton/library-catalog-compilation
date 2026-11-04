@@ -57,7 +57,8 @@ CREATE INDEX compiled_records_sort_idx
 CREATE TABLE associated_compiled (
   id                   UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
 
-  associated_record_id TEXT        REFERENCES compiled_records(associated_record_identifier),
+  associated_record_id TEXT        REFERENCES compiled_records(associated_record_identifier)
+                                    ON DELETE CASCADE ,
 
   associated_number    INT         NOT NULL CHECK (associated_number BETWEEN 1 AND 4),
 
@@ -66,6 +67,10 @@ CREATE TABLE associated_compiled (
   lcn                  TEXT,
 
   tag                  VARCHAR(10) NOT NULL,
+
+  comments             TEXT,
+
+  date                 DATE,
 
 
   author_name_match    TEXT,
@@ -79,6 +84,11 @@ CREATE TABLE new_entries (
   record_identifier  TEXT        PRIMARY KEY,
 
   tag                            VARCHAR(10)  NOT NULL,
+
+  comments                       TEXT,
+
+
+  date                           DATE,
 
 
   parent_record_name TEXT
@@ -95,9 +105,14 @@ CREATE TABLE associated_new_entry (
 
   percent_match       NUMERIC(5,2),
 
-  lcn                TEXT,
+  lcn                 TEXT,
 
   tag                 VARCHAR(10) NOT NULL,
+
+  comments            TEXT,
+
+
+  date                DATE,
 
 
   author_name         TEXT,
