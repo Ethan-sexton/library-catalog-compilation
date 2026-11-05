@@ -9,7 +9,6 @@ const els = {
   status:    document.querySelector('#status'),
   uploadBtn: document.querySelector('#upload-btn'),
   uploadFile:document.querySelector('#upload-file'),
-  checkBtn:  document.querySelector('#check-btn'),
   logoutBtn: document.querySelector('#logout-btn'),
 };
 
@@ -29,8 +28,10 @@ async function loadPage(page) {
     renderRows(data.rows);
     renderPager();
     setStatus('');
+    return true;
   } catch (err) {
     setStatus(`Load failed: ${err.message}`, 'error');
+    return false;
   }
 }
 
@@ -40,9 +41,8 @@ function renderRows(rows) {
     const tr = document.createElement('tr');
     tr.dataset.pk = row.name_with_valid_delimiters;
 
-    tr.appendChild(cell(row.first_word, { readOnly: true }));
-    tr.appendChild(cell(row.canonical_name, { field: 'canonical_name' }));
     tr.appendChild(cell(row.tag, { field: 'tag' }));
+    tr.appendChild(cell(row.canonical_name, { field: 'canonical_name' }));
     tr.appendChild(cell(row.comments || '', { field: 'comments' }));
     tr.appendChild(cell(row.date || '', { readOnly: true }));
     tr.appendChild(cell(row.associated_record_identifier || '', { readOnly: true, pk: true }));
@@ -106,28 +106,30 @@ els.uploadFile.addEventListener('change', async () => {
   if (!file) return;
   const form = new FormData();
   form.append('file', file);
-  setStatus('Uploading…');
+  els.uploadBtn.disabled = true;
+  setStatus('Importing…');
   try {
     const res = await fetch('/api/upload', { method: 'POST', body: form });
     if (!res.ok) throw new Error(await res.text());
-    setStatus('Uploaded', 'success');
-    els.uploadFile.value = '';
-  } catch (err) {
-    setStatus(`Upload failed: ${err.message}`, 'error');
-  }
-});
-
-els.checkBtn.addEventListener('click', async () => {
-  if (!confirm('Run check and convert?')) return;
-  setStatus('Running…');
-  try {
-    const res = await fetch('/api/check', { method: 'POST' });
-    if (!res.ok) throw new Error(await res.text());
     const result = await res.json();
-    setStatus(`Converted ${result.converted}, deleted ${result.deleted}`, 'success');
-    loadPage(0);
+    const loaded = await loadPage(0);
+    if (loaded) {
+      setStatus(
+        `Imported ${result.compiledRecords} records and ${result.authorityMatches} authority matches`
+          + (result.skippedCompiledRecords
+            ? `; skipped ${result.skippedCompiledRecords} existing records`
+            : '')
+          + (result.skippedAuthorityMatches
+            ? `; skipped ${result.skippedAuthorityMatches} matches beyond the 4-per-record limit`
+            : ''),
+        'success'
+      );
+    }
   } catch (err) {
-    setStatus(`Check failed: ${err.message}`, 'error');
+    setStatus(`Import failed: ${err.message}`, 'error');
+  } finally {
+    els.uploadFile.value = '';
+    els.uploadBtn.disabled = false;
   }
 });
 

@@ -1,4 +1,3 @@
-import re
 from typing import Protocol
 
 from .DataClasses import AuthorityMatch, CompiledRecord
@@ -23,8 +22,8 @@ class PostgresInserter:
             name_with_valid_delimiters,
             associated_record_identifier,
             canonical_name,
-            id_a,
-            id_b,
+            tag,
+            comments,
             date
         ) VALUES (%s, %s, %s, %s, %s, %s)
     """
@@ -32,11 +31,10 @@ class PostgresInserter:
         INSERT INTO associated_compiled (
             associated_record_id,
             percent_match,
-            value,
-            id_a,
-            id_b,
+            lcn,
+            tag,
             author_name_match
-        ) VALUES (%s, %s, %s, %s, %s, %s)
+        ) VALUES (%s, %s, %s, %s, %s)
     """
 
     def __init__(self, connection: _Connection):
@@ -45,25 +43,22 @@ class PostgresInserter:
     def insert(self, record: CompiledRecord | AuthorityMatch) -> None:
         """Insert one supported data class; database errors propagate."""
         if isinstance(record, CompiledRecord):
-            id_a, id_b = self._parse_tag(record.tag)
             params = (
                 record.canonical_field,
                 record.reference,
                 record.relevant_field,
-                id_a,
-                id_b,
+                record.tag,
+                record.notes or None,
                 record.date or None,
             )
             query = self._COMPILED_RECORD_INSERT
             
         elif isinstance(record, AuthorityMatch):
-            id_a, id_b = self._parse_tag(record.tag)
             params = (
-                record.reference,
+                record.associated_record_id,
                 record.confidence,
-                record.canonical_field,
-                id_a,
-                id_b,
+                record.reference,
+                record.tag,
                 record.relevant_field,
             )
             query = self._AUTHORITY_MATCH_INSERT
@@ -77,10 +72,3 @@ class PostgresInserter:
             cursor.execute(query, params)
         finally:
             cursor.close()
-
-    @staticmethod
-    def _parse_tag(tag: str) -> tuple[int, int]:
-        match = re.fullmatch(r"(\d{3})\s+(\d{1,2})", tag)
-        if match is None:
-            raise ValueError(f"Invalid MARC tag: {tag!r}")
-        return int(match.group(1)), int(match.group(2))

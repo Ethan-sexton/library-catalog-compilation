@@ -10,7 +10,7 @@ class PostgresInserterTests(unittest.TestCase):
         self.cursor = self.connection.cursor.return_value
         self.inserter = PostgresInserter(self.connection)
 
-    def test_inserts_compiled_record_and_omits_empty_date(self):
+    def test_inserts_compiled_record_and_omits_empty_optional_fields(self):
         record = CompiledRecord(
             reference="control-123",
             tag="245 10",
@@ -26,14 +26,15 @@ class PostgresInserterTests(unittest.TestCase):
         self.assertIn("INSERT INTO compiled_records", query)
         self.assertEqual(
             params,
-            ("$aA title", "control-123", "$aA title", 245, 10, None),
+            ("$aA title", "control-123", "$aA title", "245 10", None, None),
         )
         self.cursor.close.assert_called_once_with()
 
     def test_inserts_authority_match(self):
         match = AuthorityMatch(
             confidence=98.5,
-            reference="control-123",
+            reference="authority-456",
+            associated_record_id="control-123",
             tag="100 1",
             canonical_field="$aAuthor",
             relevant_field="$aAuthor",
@@ -46,24 +47,10 @@ class PostgresInserterTests(unittest.TestCase):
         self.assertIn("INSERT INTO associated_compiled", query)
         self.assertEqual(
             params,
-            ("control-123", 98.5, "$aAuthor", 100, 1, "$aAuthor"),
+            ("control-123", 98.5, "authority-456", "100 1", "$aAuthor"),
         )
         self.cursor.close.assert_called_once_with()
 
-    def test_rejects_malformed_tag_before_opening_cursor(self):
-        record = CompiledRecord(
-            reference="control-123",
-            tag="245",
-            canonical_field="$aA title",
-            relevant_field="$aA title",
-            date="",
-            notes=None,
-        )
-
-        with self.assertRaisesRegex(ValueError, "Invalid MARC tag"):
-            self.inserter.insert(record)
-
-        self.connection.cursor.assert_not_called()
 
     def test_rejects_unsupported_data_class(self):
         with self.assertRaisesRegex(TypeError, "Unsupported record type"):
