@@ -8,16 +8,22 @@
 <body>
   <div class="layout">
     <aside class="sidebar">
-      <h1>Catalog</h1>
-      <button id="logout-btn">Log out</button>
+      <h1>MSU Catalog</h1>
 
       <label for="db-select">Database</label>
       <select id="db-select">
-        <option value="authors">Authors</option>
+        <option value="authors">Names</option>
       </select>
 
       <button id="upload-btn">Import HTML or CSV</button>
       <input type="file" id="upload-file" accept=".htm,.html,.csv" hidden>
+
+      <button id = "check-all-btn">Check &amp; Convert All</button>
+
+      <label for="new-entry-select">Select New Entry</label>
+      <select id="new-entry-select">
+        <option value="">Loading...</option>
+      </select>
 
       <div id="status"></div>
     </aside>
@@ -27,6 +33,11 @@
         <button id="prev-btn">← Prev</button>
         <span id="page-info"></span>
         <button id="next-btn">Next →</button>
+
+        <form id = "search-form" class = "search-form">
+          <input type = "text" id = "search-input" placeholder = "Search">
+          <button type = "submit">Search</button>
+        </form>
       </div>
 
       <table id="records">
@@ -34,9 +45,12 @@
           <tr>
             <th>Tag</th>
             <th>Canonical Name</th>
+            <th>Percent Match</th>
+            <th>LCN</th>
             <th>Comments</th>
             <th>Date</th>
             <th>Assoc ID</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody></tbody>
