@@ -16,6 +16,7 @@ const els = {
   status:    document.querySelector('#status'),
   uploadBtn: document.querySelector('#upload-btn'),
   uploadFile:document.querySelector('#upload-file'),
+  logoutBtn: document.querySelector('#logout-btn'),
   checkBtn:  document.querySelector('#check-btn'),
   newEntrySelect: document.querySelector('#new-entry-select'),
   searchForm: document.querySelector('#search-form'),
@@ -62,8 +63,10 @@ async function loadPage(page, jumpQuery = null) {
     renderRows(data.rows);
     renderPager();
     setStatus('');
+    return true;
   } catch (err) {
     setStatus(`Load failed: ${err.message}`, 'error');
+    return false;
   }
 }
 
@@ -273,17 +276,38 @@ els.uploadFile.addEventListener('change', async () => {
   if (!file) return;
   const form = new FormData();
   form.append('file', file);
-  setStatus('Uploading…');
+  els.uploadBtn.disabled = true;
+  setStatus('Importing…');
   try {
     const res = await fetch('/api/upload', { method: 'POST', body: form });
     if (!res.ok) throw new Error(await res.text());
-    setStatus('Uploaded', 'success');
-    els.uploadFile.value = '';
+    const result = await res.json();
+    const loaded = await loadPage(0);
+    if (loaded) {
+      setStatus(
+        `Imported ${result.compiledRecords} records and ${result.authorityMatches} authority matches`
+          + (result.skippedCompiledRecords
+            ? `; skipped ${result.skippedCompiledRecords} existing records`
+            : '')
+          + (result.skippedAuthorityMatches
+            ? `; skipped ${result.skippedAuthorityMatches} matches beyond the 4-per-record limit`
+            : ''),
+        'success'
+      );
+    }
   } catch (err) {
-    setStatus(`Upload failed: ${err.message}`, 'error');
+    setStatus(`Import failed: ${err.message}`, 'error');
+  } finally {
+    els.uploadFile.value = '';
+    els.uploadBtn.disabled = false;
   }
 });
 
+els.logoutBtn.addEventListener('click', async () => {
+  try {
+    const res = await fetch('/api/auth/logout', { method: 'POST' });
+    if (!res.ok) throw new Error(await res.text());
+    window.location.assign('/login.html');
 
 
 //This event listener calls the match and convert logic, which is done by the database server. It also reloads the tables so changes made to current page are visible. 
@@ -310,7 +334,7 @@ els.checkBtn.addEventListener('click', async () => {
     loadNewEntries();
     loadPage(0); 
   } catch (err) {
-    setStatus(`Check failed: ${err.message}`, 'error');
+    setStatus(`Log out failed: ${err.message}`, 'error');
   }
 });
 

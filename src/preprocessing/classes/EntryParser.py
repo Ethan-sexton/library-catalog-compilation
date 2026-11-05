@@ -21,6 +21,7 @@ class EntryParser:
         self.compiled_records = []
         self.authority_matches = []
         current_reference = ""
+        current_parent_reference = ""
 
         for row_number, row in enumerate(self.soup.find_all("tr"), start=1):
             cells = row.find_all("td", recursive=False)
@@ -33,6 +34,7 @@ class EntryParser:
                         f"Record label row {row_number} has no control number"
                     )
                 current_reference = self.clean_text(self._text(control_number))
+                current_parent_reference = ""
 
             elif "rec-compare-row" in row_classes:
                 if len(cells) < 2:
@@ -56,6 +58,7 @@ class EntryParser:
                         notes="",
                     )
                 )
+                current_parent_reference = current_reference
                 current_reference = ""
 
             elif len(cells) == 4:
@@ -90,6 +93,7 @@ class EntryParser:
                     AuthorityMatch(
                         confidence=confidence,
                         reference=reference,
+                        associated_record_id=current_parent_reference or None,
                         tag=tag,
                         canonical_field=canonical_field,
                         relevant_field=self.clean_marc(canonical_field),
