@@ -124,7 +124,7 @@ function renderRows(rows) {
         childTr.appendChild(cell(child.author_name_match || '', { readOnly:true }));
         childTr.appendChild(cell(child.percent_match || '', { readOnly:true }));
         childTr.appendChild(cell(child.lcn || '', { readOnly:true }));
-        const childComments = cell(child.comments || '', { readOnly:true });
+        const childComments = cell(child.comments || '', { field: 'comments' });
         childComments.classList.add('comment-cell');
         childTr.appendChild(childComments);
         childTr.appendChild(cell(child.date || '', { readOnly:true }));
