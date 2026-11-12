@@ -38,8 +38,8 @@ class CSVParser():
                         str(row[1]),
                         current_reference or None,
                         str(row[2]).strip(),
-                        self.clean_subfields(row[3]),
                         row[3],
+                        self.clean_subfields(row[3]),
                         self.find_notes(row)
                     )
                     self.matches.append(new_auth)

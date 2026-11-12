@@ -21,9 +21,22 @@
    psql -U postgres -d library_catalog -f db/test_data.sql
    ```
 
+   For an existing database, apply the migration with `psql -U postgres -d library_catalog -f db/migrations/001_add_associated_compiled_metadata.sql`.
+
 5. Start the server with `npm start` and open <http://localhost:3000>. Import an `.htm`, `.html`, or `.csv` file from the catalog page. The matching Python parser processes it and the resulting records are inserted into PostgreSQL as one transaction.
 
 The demo account is `catalog_test` / `LibraryDemo2026!`. Accounts created through sign up are stored in PostgreSQL with bcrypt-hashed passwords. Sessions are stored in PostgreSQL as well.
+
+### Run tests
+
+Install the Python dependencies from `requirements.txt` in the project virtual environment, then activate it before running the full suite:
+
+```powershell
+.venv\Scripts\Activate.ps1
+npm test
+```
+
+`npm run test:backend` runs Node's built-in test runner with mocked database calls; `npm run test:preprocessing` runs the Python `unittest` suite. Neither suite requires a running PostgreSQL server.
 
 ### Development database reset
 
