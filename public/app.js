@@ -308,6 +308,10 @@ els.logoutBtn.addEventListener('click', async () => {
     const res = await fetch('/api/auth/logout', { method: 'POST' });
     if (!res.ok) throw new Error(await res.text());
     window.location.assign('/login.html');
+  } catch (err) {
+    setStatus(`Log out failed: ${err.message}`, 'error');
+  }
+});
 
 
 //This event listener calls the match and convert logic, which is done by the database server. It also reloads the tables so changes made to current page are visible. 
@@ -334,7 +338,7 @@ els.checkBtn.addEventListener('click', async () => {
     loadNewEntries();
     loadPage(0); 
   } catch (err) {
-    setStatus(`Log out failed: ${err.message}`, 'error');
+    setStatus(`Check failed: ${err.message}`, 'error');
   }
 });
 
@@ -355,7 +359,7 @@ els.checkAllBtn.addEventListener('click', async () => {
   setStatus('Running all conversions... Please wait.');
 
   try {
-    const res = await fetch('api/check-all', {method: 'POST'});
+    const res = await fetch('/api/check-all', {method: 'POST'});
     if (!res.ok) throw new Error(await res.text());
     const result = await res.json();
 
@@ -364,7 +368,7 @@ els.checkAllBtn.addEventListener('click', async () => {
     loadNewEntries();
     loadPage(0);
   } catch (err) {
-    setStatus('Batch check failed: ${err.message}', 'error');
+    setStatus(`Batch check failed: ${err.message}`, 'error');
   } finally {
     els.checkAllBtn.disabled = false;
   }

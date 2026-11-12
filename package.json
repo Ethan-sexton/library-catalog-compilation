@@ -9,7 +9,10 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "db:reset": "node scripts/dev/reset-database.js"
+    "db:reset": "node scripts/dev/reset-database.js",
+    "test": "npm run test:backend && npm run test:preprocessing",
+    "test:backend": "node --test",
+    "test:preprocessing": "python -B -m unittest discover -s src/preprocessing -p \"test*.py\""
   },
   "repository": {
     "type": "git",

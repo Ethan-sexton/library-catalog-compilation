@@ -1,0 +1,7 @@
+BEGIN;
+
+ALTER TABLE associated_compiled
+  ADD COLUMN IF NOT EXISTS comments TEXT,
+  ADD COLUMN IF NOT EXISTS date DATE;
+
+COMMIT;
