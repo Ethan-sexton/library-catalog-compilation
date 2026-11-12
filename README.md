@@ -26,6 +26,7 @@
    ```sh
    psql -U postgres -d library_catalog -f db/migrations/001_add_associated_compiled_metadata.sql
    psql -U postgres -d library_catalog -f db/migrations/002_catalog_audit_log.sql
+   psql -U postgres -d library_catalog -f db/migrations/003_cascade_associated_record_deletion.sql
    ```
 
 5. Start the server with `npm start` and open <http://localhost:3000>. Import an `.htm`, `.html`, or `.csv` file from the catalog page. The matching Python parser processes it and the resulting records are inserted into PostgreSQL as one transaction.
