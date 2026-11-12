@@ -21,11 +21,22 @@
    psql -U postgres -d library_catalog -f db/test_data.sql
    ```
 
-   For an existing database, apply the migration with `psql -U postgres -d library_catalog -f db/migrations/001_add_associated_compiled_metadata.sql`.
+   For an existing database, apply any migrations not yet installed, in order:
+
+   ```sh
+   psql -U postgres -d library_catalog -f db/migrations/001_add_associated_compiled_metadata.sql
+   psql -U postgres -d library_catalog -f db/migrations/002_catalog_audit_log.sql
+   ```
 
 5. Start the server with `npm start` and open <http://localhost:3000>. Import an `.htm`, `.html`, or `.csv` file from the catalog page. The matching Python parser processes it and the resulting records are inserted into PostgreSQL as one transaction.
 
 The demo account is `catalog_test` / `LibraryDemo2026!`. Accounts created through sign up are stored in PostgreSQL with bcrypt-hashed passwords. Sessions are stored in PostgreSQL as well.
+
+### Change and error report
+
+The database records catalog and queue additions, edits, and deletions in the `audit_events` table in the same transaction as each change. The app refreshes the root-level `report.txt` from that durable log; the report also includes browser/API errors and uncaught server crash details when available. Open it from the catalog page's **Open report.txt** link. If the app encounters an error, it prompts to open the report; if the server is unavailable, the prompt is repeated on the next app load.
+
+The report contains catalog record values and should be treated as sensitive. It is generated locally and is excluded from version control.
 
 ### Run tests
 

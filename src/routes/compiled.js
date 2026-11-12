@@ -1,5 +1,6 @@
 const express = require('express');
 const pool = require('../db');
+const { runAuditedTransaction } = require('../services/auditService');
 
 const router = express.Router();
 const EDITABLE = ['comments', 'date'];
@@ -96,11 +97,13 @@ router.patch('/compiled', async (req, res) => {
   values.push(pk);
 
   try {
-    const { rowCount } = await pool.query(
-      `UPDATE compiled_records SET ${sets.join(', ')}
-        WHERE name_with_valid_delimiters = $${index}`,
-      values
-    );
+    const rowCount = await runAuditedTransaction(req.session.userId, (client) => (
+      client.query(
+        `UPDATE compiled_records SET ${sets.join(', ')}
+          WHERE name_with_valid_delimiters = $${index}`,
+        values
+      ).then((result) => result.rowCount)
+    ));
     if (!rowCount) return res.status(404).json({ error: 'not found' });
     res.json({ ok: true });
   } catch (error) {
@@ -111,12 +114,15 @@ router.patch('/compiled', async (req, res) => {
 
 router.delete('/compiled/:pk', async (req, res) => {
   try {
-    const result = await pool.query(
-      'DELETE FROM compiled_records WHERE name_with_valid_delimiters = $1',
-      [req.params.pk]
-    );
+    const rowCount = await runAuditedTransaction(req.session.userId, async (client) => {
+      const result = await client.query(
+        'DELETE FROM compiled_records WHERE name_with_valid_delimiters = $1',
+        [req.params.pk]
+      );
+      return result.rowCount;
+    });
 
-    if (result.rowCount === 0) return res.status(404).json({ error: 'Record not found' });
+    if (rowCount === 0) return res.status(404).json({ error: 'Record not found' });
     res.json({ ok: true });
   } catch (error) {
     console.error(error);
@@ -144,10 +150,12 @@ router.patch('/associated_compiled', async (req, res) => {
   values.push(pk);
 
   try {
-    const { rowCount } = await pool.query(
-      `UPDATE associated_compiled SET ${sets.join(', ')} WHERE id = $${index}`,
-      values
-    );
+    const rowCount = await runAuditedTransaction(req.session.userId, (client) => (
+      client.query(
+        `UPDATE associated_compiled SET ${sets.join(', ')} WHERE id = $${index}`,
+        values
+      ).then((result) => result.rowCount)
+    ));
     if (!rowCount) return res.status(404).json({ error: 'not found' });
     res.json({ ok: true });
   } catch (error) {

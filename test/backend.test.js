@@ -14,6 +14,10 @@ const {
   normalizeDate,
   validateParsedRecords,
 } = require('../src/services/importService');
+const {
+  formatAuditReport,
+  runAuditedTransaction,
+} = require('../src/services/auditService');
 const { createServer } = require('node:http');
 
 const originalQuery = pool.query;
@@ -58,6 +62,7 @@ describe('backend API', () => {
   });
 
   beforeEach(async () => {
+    pool.connect = originalConnect;
     pool.query = async (sql) => {
       if (sql.includes('FROM users')) {
         return { rows: [{ ...testUser, password_hash: passwordHash }] };
@@ -134,10 +139,18 @@ describe('backend API', () => {
 
   it('updates only allowed compiled-record fields', async () => {
     let update;
-    pool.query = async (sql, params) => {
-      update = { sql, params };
-      return { rowCount: 1 };
-    };
+    const statements = [];
+    pool.connect = async () => ({
+      async query(sql, params) {
+        statements.push(sql);
+        if (sql.startsWith('UPDATE compiled_records')) {
+          update = { sql, params };
+          return { rowCount: 1 };
+        }
+        return { rowCount: 0 };
+      },
+      release() {},
+    });
 
     const { response, body } = await request('/api/compiled', {
       method: 'PATCH',
@@ -150,9 +163,40 @@ describe('backend API', () => {
 
     assert.equal(response.status, 200);
     assert.deepEqual(body, { ok: true });
+    assert.ok(statements.includes('BEGIN'));
+    assert.ok(statements.includes('COMMIT'));
     assert.match(update.sql, /comments = \$1, date = \$2/);
     assert.doesNotMatch(update.sql, /tag/);
     assert.deepEqual(update.params, ['Reviewed', '2026-03-04', 'record-1']);
+  });
+
+  it('records browser errors for inclusion in the report', async () => {
+    let insert;
+    pool.query = async (sql, params) => {
+      insert = { sql, params };
+      return { rowCount: 1 };
+    };
+
+    const { response, body } = await request('/api/errors', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        source: 'browser',
+        message: 'Unexpected test error',
+        stack: 'Error: Unexpected test error',
+        url: '/index.html',
+      }),
+    });
+
+    assert.equal(response.status, 202);
+    assert.deepEqual(body, { ok: true });
+    assert.match(insert.sql, /INSERT INTO audit_events/);
+    assert.deepEqual(JSON.parse(insert.params[2]), {
+      source: 'browser',
+      message: 'Unexpected test error',
+      stack: 'Error: Unexpected test error',
+      url: '/index.html',
+    });
   });
 
   it('rejects updates that contain no editable fields without querying the database', async () => {
@@ -193,6 +237,7 @@ describe('backend API', () => {
     assert.equal(response.status, 200);
     assert.deepEqual(body, { status: 'converted' });
     assert.equal(statements[0], 'BEGIN');
+    assert.match(statements[1], /set_config\('app\.user_id'/);
     assert.ok(statements.some((sql) => sql.includes('INSERT INTO compiled_records')));
     assert.ok(statements.some((sql) => sql.includes('INSERT INTO associated_compiled')));
     assert.equal(statements.at(-2), 'COMMIT');
@@ -201,6 +246,69 @@ describe('backend API', () => {
 });
 
 describe('backend data validation and inserts', () => {
+  it('associates transactional changes with the current user', async () => {
+    const calls = [];
+    pool.connect = async () => ({
+      async query(sql, params) {
+        calls.push({ sql, params });
+        return { rows: [] };
+      },
+      release() {
+        calls.push({ sql: 'RELEASE' });
+      },
+    });
+
+    const result = await runAuditedTransaction(42, async (client) => {
+      await client.query('UPDATE compiled_records');
+      return 'done';
+    });
+
+    assert.equal(result, 'done');
+    assert.equal(calls[0].sql, 'BEGIN');
+    assert.deepEqual(calls[1].params, ['42']);
+    assert.equal(calls[2].sql, 'UPDATE compiled_records');
+    assert.equal(calls[3].sql, 'COMMIT');
+    assert.equal(calls[4].sql, 'RELEASE');
+  });
+
+  it('rolls back failed changes without refreshing the report', async () => {
+    const calls = [];
+    pool.connect = async () => ({
+      async query(sql) {
+        calls.push(sql);
+        if (sql === 'UPDATE compiled_records') throw new Error('write failed');
+        return { rows: [] };
+      },
+      release() {
+        calls.push('RELEASE');
+      },
+    });
+
+    await assert.rejects(
+      runAuditedTransaction(42, (client) => client.query('UPDATE compiled_records')),
+      /write failed/
+    );
+    assert.deepEqual(calls, ['BEGIN', "SELECT set_config('app.user_id', $1, true)", 'UPDATE compiled_records', 'ROLLBACK', 'RELEASE']);
+  });
+
+  it('formats additions, edits, deletions, and errors in the report', () => {
+    const report = formatAuditReport([
+      {
+        occurred_at: '2026-11-12T12:00:00.000Z',
+        actor_id: 42,
+        action: 'MODIFY',
+        table_name: 'compiled_records',
+        record_key: 'record-1',
+        old_data: { comments: 'Before' },
+        new_data: { comments: 'After' },
+      },
+    ]);
+
+    assert.match(report, /MODIFY compiled_records record record-1 by user 42/);
+    assert.match(report, /Before: \{"comments":"Before"\}/);
+    assert.match(report, /After:  \{"comments":"After"\}/);
+  });
+
   it('normalizes supported dates and rejects impossible dates', () => {
     assert.equal(normalizeDate('2024-2-29'), '2024-02-29');
     assert.equal(normalizeDate('3/4/2026'), '2026-03-04');

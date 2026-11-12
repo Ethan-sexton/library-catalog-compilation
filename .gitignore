@@ -12,6 +12,8 @@ node_modules/
 .idea/
 
 resources/
+/report.txt
+/.report-crashes.log
 
 newdb.sql
 

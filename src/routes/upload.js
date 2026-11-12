@@ -4,8 +4,8 @@ const os = require('os');
 const path = require('path');
 const { randomUUID } = require('crypto');
 const fs = require('fs/promises');
-const pool = require('../db');
 const { selectAuthorityMatches } = require('../importHelpers');
+const { runAuditedTransaction } = require('../services/auditService');
 const {
   insertAuthorityMatches,
   insertCompiledRecords,
@@ -53,49 +53,29 @@ router.post('/upload', receiveUpload, async (req, res) => {
   try {
     const parsed = await preprocessFile(req.file.path);
     const { compiledRecords, authorityMatches } = validateParsedRecords(parsed);
-    const client = await pool.connect();
-    let transactionStarted = false;
-    let insertedRecords;
-    let importedAuthorityMatches;
-    let eligibleAuthorityMatches;
-    try {
-      await client.query('BEGIN');
-      transactionStarted = true;
-      insertedRecords = await insertCompiledRecords(client, compiledRecords);
+    const result = await runAuditedTransaction(req.session.userId, async (client) => {
+      const insertedRecords = await insertCompiledRecords(client, compiledRecords);
       const insertedIdentifierSet = new Set(
         insertedRecords
           .map((record) => record.associated_record_identifier)
           .filter((identifier) => identifier != null)
       );
-      eligibleAuthorityMatches = authorityMatches.filter(
+      const eligibleAuthorityMatches = authorityMatches.filter(
         ([associatedRecordId]) => insertedIdentifierSet.has(associatedRecordId)
       );
-      importedAuthorityMatches = selectAuthorityMatches(
+      const importedAuthorityMatches = selectAuthorityMatches(
         eligibleAuthorityMatches,
         insertedIdentifierSet
       );
       await insertAuthorityMatches(client, importedAuthorityMatches);
-      await client.query('COMMIT');
-      transactionStarted = false;
-    } catch (error) {
-      if (transactionStarted) {
-        try {
-          await client.query('ROLLBACK');
-        } catch (rollbackError) {
-          console.error('Failed to roll back file import:', rollbackError);
-        }
-      }
-      throw error;
-    } finally {
-      client.release();
-    }
-
-    res.json({
-      compiledRecords: insertedRecords.length,
-      authorityMatches: importedAuthorityMatches.length,
-      skippedCompiledRecords: compiledRecords.length - insertedRecords.length,
-      skippedAuthorityMatches: eligibleAuthorityMatches.length - importedAuthorityMatches.length,
+      return {
+        compiledRecords: insertedRecords.length,
+        authorityMatches: importedAuthorityMatches.length,
+        skippedCompiledRecords: compiledRecords.length - insertedRecords.length,
+        skippedAuthorityMatches: eligibleAuthorityMatches.length - importedAuthorityMatches.length,
+      };
     });
+    res.json(result);
   } catch (error) {
     if (error.statusCode === 422) {
       return res.status(422).json({ error: error.message });

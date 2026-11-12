@@ -9,6 +9,8 @@ const authRoutes = require('./routes/auth');
 const compiledRoutes = require('./routes/compiled');
 const newEntryRoutes = require('./routes/newEntries');
 const uploadRoutes = require('./routes/upload');
+const { errorRouter, reportRouter } = require('./routes/audit');
+const { crashLogPath, refreshAuditReport } = require('./services/auditService');
 
 const sessionSecret = process.env.SESSION_SECRET;
 if (!sessionSecret) {
@@ -47,10 +49,12 @@ function requireAuth(req, res, next) {
 }
 
 app.use('/api/auth', authRoutes);
+app.use('/api/errors', errorRouter);
 app.use('/api', requireAuth);
 app.use('/api', compiledRoutes);
 app.use('/api', newEntryRoutes);
 app.use('/api', uploadRoutes);
+app.use('/api', reportRouter);
 
 app.get('/', (req, res) => {
   res.redirect(req.session.userId ? '/index.html' : '/login.html');
@@ -63,7 +67,24 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 
 const PORT = process.env.PORT || 3000;
 if (require.main === module) {
+  process.on('uncaughtExceptionMonitor', (error, origin) => {
+    const entry = [
+      '',
+      `[${new Date().toISOString()}] SERVER CRASH (${origin})`,
+      `${error.name}: ${error.message}`,
+      error.stack || '',
+      '',
+    ].join('\n');
+    try {
+      require('fs').appendFileSync(crashLogPath, entry, 'utf8');
+    } catch (writeError) {
+      console.error('Failed to write server crash details:', writeError);
+    }
+  });
   app.listen(PORT, () => console.log(`Listening on http://localhost:${PORT}`));
+  refreshAuditReport().catch((error) => {
+    console.error('Failed to initialize report.txt from the audit log:', error);
+  });
 }
 
 module.exports = { app };
