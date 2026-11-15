@@ -18,6 +18,10 @@ if (!sessionSecret) {
 }
 
 const app = express();
+
+app.set('trust proxy', 1); 
+
+
 app.use(express.json({ limit: '5mb' }));
 app.use(session({
   store: process.env.NODE_ENV === 'test'
