@@ -16,12 +16,23 @@ router.get('/compiled', async (req, res) => {
   try {
     if (q) {
       const target = await pool.query(
-        `SELECT first_letter, first_word, name_with_valid_delimiters FROM compiled_records
-          WHERE lower(canonical_name) >= lower('$a' || $1)
+        `WITH normalized_query AS (
+           SELECT 
+             lower(left(trim(regexp_replace($1, '[^a-zA-Z0-9]+', ' ', 'g')), 1)) AS q_letter,
+             lower(split_part(trim(regexp_replace($1, '[^a-zA-Z0-9]+', ' ', 'g')), ' ', 1)) AS q_word,
+             lower('$a' || trim(regexp_replace($1, '[^a-zA-Z0-9]+', ' ', 'g'))) AS q_pk
+         )
+         SELECT first_letter, first_word, name_with_valid_delimiters FROM compiled_records, normalized_query
+          WHERE (first_letter, first_word, name_with_valid_delimiters) >= (
+            q_letter,
+            q_word,
+            q_pk
+          )
           ORDER BY first_letter, first_word, name_with_valid_delimiters
           LIMIT 1`,
         [q]
       );
+    
 
       if (target.rowCount > 0) {
         const record = target.rows[0];
